@@ -4,7 +4,7 @@ resource "aws_vpc" "ocp_new_vpc" {
   enable_dns_support = true
   enable_dns_hostnames = true
   tags = {
-    Name = var.vpc_name
+    Name = var.vpc_tag
   }
 }
 

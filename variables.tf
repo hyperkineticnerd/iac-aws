@@ -1,4 +1,4 @@
-variable "vpc_name" {
+variable "vpc_tag" {
   default = "OCP Training"
 }
 
