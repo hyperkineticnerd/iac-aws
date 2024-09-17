@@ -3,7 +3,7 @@ output "subnets" {
 }
 
 output "vpcs" {
-    value = aws_vpc.ocp_training.id
+    value = aws_vpc.ocp_new_vpc.id
 }
 
 output "azs" {
