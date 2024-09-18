@@ -1,13 +1,13 @@
-variable "vpc_tag" {
-  type = string
-  description = "AWS VPC Tag/Name"
-  default = "OpenShift-Training"
-}
-
 variable "vpc_region" {
   type = string
   description = "AWS Region for VPC"
   default = "us-east-1"
+}
+
+variable "vpc_tag" {
+  type = string
+  description = "AWS VPC Tag/Name"
+  default = "OpenShift-Training"
 }
 
 variable "vpc_cidr" {
