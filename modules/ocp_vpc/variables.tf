@@ -1,5 +1,5 @@
 variable "vpc_tag" {
-  default = "OCP Training"
+  default = "OpenShift-Training"
 }
 
 variable "vpc_region" {
