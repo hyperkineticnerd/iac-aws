@@ -7,15 +7,7 @@
     aws_endpoint_service_name_prefix: com.amazonaws
     ocp_vpc_tag: ocp-testing
     ocp_vpc_cidr: 10.0.2.0/23
-    main_vpc_cidr: 10.0.0.0/23
   tasks:
-    - name: Fetch Main VPC
-      amazon.aws.ec2_vpc_net_info:
-        region: "{{ aws_region }}"
-        filters:
-          cidr: "{{ main_vpc_cidr }}"
-      register: main_vpc
-
     - name: Create VPC
       register: new_ocp_vpc
       amazon.aws.ec2_vpc_net:
@@ -43,39 +35,6 @@
         az: "{{ item.az }}"
       register: new_ocp_vpc_subnets
 
-    # - name: Create OCP Bastion SG
-    #   amazon.aws.ec2_security_group:
-    #     name: Bastion SG
-    #     description: OCP Bastion Security Group
-    #     region: "{{ aws_region }}"
-    #     vpc_id: "{{ new_ocp_vpc.vpc.id }}"
-    #     rules:
-    #       - cidr_ip: "{{ main_vpc.vpcs[0].cidr_block }}"
-    #         proto: "all"
-    #       - cidr_ip: "{{ new_ocp_vpc.vpc.cidr_block }}"
-    #         proto: "all"
-    #     rules_egress:
-    #       - cidr_ip: 0.0.0.0/0
-    #         proto: "all"
-
-    # # Complete example to create and accept a local peering connection.
-    # - name: Create VPC Peering Connection to Main VPC
-    #   community.aws.ec2_vpc_peer:
-    #     region: "{{ aws_region }}"
-    #     vpc_id: "{{ new_ocp_vpc.vpc.id }}"
-    #     peer_vpc_id: "{{ main_vpc.vpcs[0].id }}"
-    #     state: present
-    #     tags:
-    #       Name: Peering connection for VPC MAIN to VPC OCP
-    #   register: vpc_peer
-
-    # - name: Accept local VPC peering request
-    #   community.aws.ec2_vpc_peer:
-    #     region: "{{ aws_region }}"
-    #     peering_id: "{{ vpc_peer.peering_id }}"
-    #     state: accept
-    #   register: action_peer
-
     # - name: Create VPC endpoints to AWS Services
     #   loop:
     #     - name: "{{ aws_endpoint_service_name_prefix }}.{{ aws_region }}.ec2"
@@ -89,6 +48,52 @@
     #     service: "{{ item.name }}"
     #     vpc_endpoint_type: "{{ item.type }}"
 
+- name: Setup VPC Peering Connections
+  hosts: localhost
+  connection: local
+  vars:
+    aws_region: us-east-1
+    main_vpc_cidr: 10.0.0.0/23
+  tasks:
+    - name: Fetch Main VPC
+      amazon.aws.ec2_vpc_net_info:
+        region: "{{ aws_region }}"
+        filters:
+          cidr: "{{ main_vpc_cidr }}"
+      register: main_vpc
+
+    - name: Create OCP Bastion SG
+      amazon.aws.ec2_security_group:
+        name: Bastion SG
+        description: OCP Bastion Security Group
+        region: "{{ aws_region }}"
+        vpc_id: "{{ new_ocp_vpc.vpc.id }}"
+        rules:
+          - cidr_ip: "{{ main_vpc.vpcs[0].cidr_block }}"
+            proto: "all"
+          - cidr_ip: "{{ new_ocp_vpc.vpc.cidr_block }}"
+            proto: "all"
+        rules_egress:
+          - cidr_ip: 0.0.0.0/0
+            proto: "all"
+
+    - name: Create VPC Peering Connection to Main VPC
+      community.aws.ec2_vpc_peer:
+        region: "{{ aws_region }}"
+        vpc_id: "{{ new_ocp_vpc.vpc.id }}"
+        peer_vpc_id: "{{ main_vpc.vpcs[0].id }}"
+        state: present
+        tags:
+          Name: Peering connection for VPC MAIN to VPC OCP
+      register: vpc_peer
+
+    - name: Accept local VPC peering request
+      community.aws.ec2_vpc_peer:
+        region: "{{ aws_region }}"
+        peering_id: "{{ vpc_peer.peering_id }}"
+        state: accept
+      register: action_peer
+
 - name: Create install-config.yaml
   hosts: localhost
   connection: local
@@ -97,19 +102,21 @@
     installer_az: "{{ new_ocp_vpc_subnets.results | map(attribute='subnet.availability_zone') | list }}"
     installer_region: "us-east-1"
     installer_ami: ami-96c6f8f7
+    openshift_asset_dir: "{{ lookup('env', 'PWD') }}"
   tasks:
-    # - debug:
-    #     var: installer_regions
     - name: Create YAML
       ansible.builtin.template:
         src: install-config.yaml.j2
-        dest: install-config.yaml
+        dest: "{{ openshift_asset_dir }}/install-config.yaml"
 
 # - name: Create OCP Cluster
 #   hosts: localhost
 #   connection: local
+#   vars:
+#     openshift_asset_dir: "{{ lookup('env', 'PWD') }}"
 #   tasks: 
 #     - name: Run Installer
 #       hyperkineticnerd.openshift.openshift_install:
 #         command: create_cluster
+#         dir: "{{ openshift_asset_dir }}"
 #         log_level: debug
